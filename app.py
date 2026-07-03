@@ -2,7 +2,6 @@
 """
 Dashboard de visualisation des doublons — version simplifiée.
 Lecture directe du fichier clean_file_metadata.csv
-Adapté pour les colonnes : proprietaire, categorie_fichier, a_supprimer
 """
 
 import os
@@ -97,14 +96,9 @@ def load_dataframe():
         print(f"📂 Chargement du fichier : {CSV_PATH}")
         df = pd.read_csv(CSV_PATH)
         print(f"✅ Fichier chargé : {len(df)} lignes, {len(df.columns)} colonnes")
-        print(f"📊 Colonnes : {', '.join(df.columns)}")
         
-        # Diagnostic
         if "a_supprimer" in df.columns:
-            print(f"\n📊 Distribution de 'a_supprimer':")
-            print(df["a_supprimer"].value_counts())
-        else:
-            print("\n⚠️  La colonne 'a_supprimer' est manquante !")
+            print(f"📊 Doublons : {len(df[df['a_supprimer'] == True])}")
             
         return df
     except Exception as e:
@@ -179,43 +173,27 @@ def build_dashboard(lang="fr", theme="dark"):
         id="dashboard-content",
         children=[
 
-            # KPI Row - 4 cards : Total fichiers, Doublons, Groupes, Espace gaspillé
+            # KPI Row - 4 cards
             html.Div(className="kpi-row", children=[
                 kpi_card(t(lang, "kpi_total_files"), "kpi-total", "var(--accent-copper)"),
                 kpi_card(t(lang, "kpi_duplicates"), "kpi-duplicates", "var(--accent-coral)"),
-                kpi_card(t(lang, "kpi_groups"), "kpi-groups", "var(--accent-teal)"),
+                kpi_card(t(lang, "kpi_waste_percent"), "kpi-waste-percent", "var(--accent-teal)"),
                 kpi_card(t(lang, "kpi_space"), "kpi-space", "var(--accent-copper)"),
             ]),
 
-            # Filter Panel - seulement Propriétaire et Catégorie
+            # Filter Panel - Seulement Catégorie
             html.Div(className="filter-panel", children=[
-                html.Div(className="filter-field", children=[
-                    html.Label(t(lang, "filter_proprietaire"), className="filter-label", id="label-filter-proprietaire"),
-                    dcc.Dropdown(id="proprietaire_filter", multi=True, placeholder="—"),
-                ]),
                 html.Div(className="filter-field", children=[
                     html.Label(t(lang, "filter_categorie"), className="filter-label", id="label-filter-categorie"),
                     dcc.Dropdown(id="categorie_filter", multi=True, placeholder="—"),
                 ]),
             ]),
 
-            # Charts Row 1 : Top extensions + Status pie
+            # Charts Row 1 : Status pie + Top catégories
             html.Div(className="chart-grid-2", children=[
-                html.Div(className="chart-card", children=[
-                    html.Div(t(lang, "chart_top_ext"), className="section-title", id="title-chart-ext"),
-                    dcc.Graph(id="graph-extension", config={"displayModeBar": False}),
-                ]),
                 html.Div(className="chart-card", children=[
                     html.Div(t(lang, "chart_status"), className="section-title", id="title-chart-status"),
                     dcc.Graph(id="graph-dup", config={"displayModeBar": False}),
-                ]),
-            ]),
-
-            # Charts Row 2 : Top propriétaires + Top catégories
-            html.Div(className="chart-grid-2", children=[
-                html.Div(className="chart-card", children=[
-                    html.Div(t(lang, "chart_top_proprietaire"), className="section-title", id="title-chart-proprietaire"),
-                    dcc.Graph(id="graph-proprietaire", config={"displayModeBar": False}),
                 ]),
                 html.Div(className="chart-card", children=[
                     html.Div(t(lang, "chart_top_categorie"), className="section-title", id="title-chart-categorie"),
@@ -223,15 +201,15 @@ def build_dashboard(lang="fr", theme="dark"):
                 ]),
             ]),
 
-            # Charts Row 3 : Top groupes de doublons
+            # Charts Row 2 : Top propriétaires + Top dossiers impactés
             html.Div(className="chart-grid-2", children=[
                 html.Div(className="chart-card", children=[
-                    html.Div(t(lang, "chart_top_group"), className="section-title", id="title-chart-group"),
-                    dcc.Graph(id="graph-group", config={"displayModeBar": False}),
+                    html.Div(t(lang, "chart_top_proprietaire"), className="section-title", id="title-chart-proprietaire"),
+                    dcc.Graph(id="graph-proprietaire", config={"displayModeBar": False}),
                 ]),
                 html.Div(className="chart-card", children=[
-                    html.Div(t(lang, "chart_niveau"), className="section-title", id="title-chart-niveau"),
-                    dcc.Graph(id="graph-niveau", config={"displayModeBar": False}),
+                    html.Div(t(lang, "chart_top_folders"), className="section-title", id="title-chart-folders"),
+                    dcc.Graph(id="graph-folders", config={"displayModeBar": False}),
                 ]),
             ]),
 
@@ -269,7 +247,6 @@ def _table_columns(lang):
         {"name": t(lang, "col_status"), "id": "statut_doublon"},
         {"name": t(lang, "col_proprietaire"), "id": "proprietaire"},
         {"name": t(lang, "col_categorie"), "id": "categorie_fichier"},
-        {"name": t(lang, "col_niveau"), "id": "profondeur_dossier"},
     ]
 
 
@@ -378,7 +355,6 @@ def update_brand_text(lang):
 
 
 @app.callback(
-    Output("proprietaire_filter", "options"),
     Output("categorie_filter", "options"),
     Input("dashboard-content", "id"),
     prevent_initial_call=False,
@@ -386,12 +362,11 @@ def update_brand_text(lang):
 def init_filter_options(_):
     df = load_dataframe()
     if df.empty:
-        return [], []
+        return []
     
-    proprio_opts = [{"label": p, "value": p} for p in sorted(df["proprietaire"].dropna().unique())] if "proprietaire" in df.columns else []
     categorie_opts = [{"label": c, "value": c} for c in sorted(df["categorie_fichier"].dropna().unique())] if "categorie_fichier" in df.columns else []
     
-    return proprio_opts, categorie_opts
+    return categorie_opts
 
 
 @app.callback(
@@ -399,21 +374,18 @@ def init_filter_options(_):
     Output("table", "columns"),
     Output("kpi-total", "children"),
     Output("kpi-duplicates", "children"),
-    Output("kpi-groups", "children"),
+    Output("kpi-waste-percent", "children"),
     Output("kpi-space", "children"),
-    Output("graph-extension", "figure"),
     Output("graph-dup", "figure"),
-    Output("graph-proprietaire", "figure"),
     Output("graph-categorie", "figure"),
-    Output("graph-group", "figure"),
-    Output("graph-niveau", "figure"),
-    Input("proprietaire_filter", "value"),
+    Output("graph-proprietaire", "figure"),
+    Output("graph-folders", "figure"),
     Input("categorie_filter", "value"),
     Input("lang-store", "data"),
     Input("theme-store", "data"),
     Input("refresh-trigger-store", "data"),
 )
-def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
+def update_dashboard(categorie, lang, theme, _refresh):
     lang = lang or "fr"
     theme = theme or "dark"
     df = load_dataframe()
@@ -422,37 +394,36 @@ def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
         empty_fig = empty_figure(theme, t(lang, "no_duplicates"))
         return (
             [], _table_columns(lang),
-            "0", "0", "0", "0 MB",
-            empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
+            "0", "0", "0%", "0 MB",
+            empty_fig, empty_fig, empty_fig, empty_fig,
         )
 
     if "a_supprimer" not in df.columns:
-        print("⚠️  La colonne 'a_supprimer' n'existe pas")
         empty_fig = empty_figure(theme, "Colonne 'a_supprimer' manquante")
         return (
             [], _table_columns(lang),
-            "0", "0", "0", "0 MB",
-            empty_fig, empty_fig, empty_fig, empty_fig, empty_fig, empty_fig,
+            "0", "0", "0%", "0 MB",
+            empty_fig, empty_fig, empty_fig, empty_fig,
         )
 
     dff = df.copy()
 
-    # Appliquer les filtres
-    if proprietaire and "proprietaire" in dff.columns:
-        dff = dff[dff["proprietaire"].isin(proprietaire)]
+    # Appliquer le filtre catégorie
     if categorie and "categorie_fichier" in dff.columns:
         dff = dff[dff["categorie_fichier"].isin(categorie)]
 
     # Fichiers à supprimer (doublons)
     df_dup = dff[dff["a_supprimer"] == True].copy()
     df_orig = dff[dff["a_supprimer"] == False].copy()
-    
-    print(f"   Originaux: {len(df_orig)}, Doublons: {len(df_dup)}")
 
     # KPI
     total_files = len(dff)
     total_duplicates = len(df_dup)
-    groups = df_dup["id_groupe_doublon"].nunique() if len(df_dup) and "id_groupe_doublon" in df_dup.columns else 0
+    
+    # Pourcentage d'espace gaspillé
+    total_space = dff["taille_octets"].sum() if "taille_octets" in dff.columns else 0
+    wasted_space = df_dup["taille_octets"].sum() if "taille_octets" in df_dup.columns else 0
+    waste_percent = (wasted_space / total_space * 100) if total_space > 0 else 0
 
     if len(df_dup) and "taille_octets" in df_dup.columns:
         espace_recuperable_octets = df_dup["taille_octets"].sum()
@@ -463,21 +434,12 @@ def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
     # Formatage
     total_fmt = f"{total_files:,}".replace(",", " ")
     duplicates_fmt = f"{total_duplicates:,}".replace(",", " ")
-    groups_fmt = f"{groups:,}".replace(",", " ")
+    waste_percent_fmt = f"{waste_percent:.1f}%"
     space_fmt = f"{space:,.2f} MB".replace(",", " ")
 
     # --- Graphiques ---
     
-    # 1. Top extensions
-    if len(df_dup) and "extension" in df_dup.columns:
-        fig_ext = px.bar(
-            df_dup["extension"].value_counts().head(10),
-            color_discrete_sequence=["#C77D34"]
-        )
-    else:
-        fig_ext = empty_figure(theme, t(lang, "no_duplicates"))
-
-    # 2. Originaux vs Doublons (Pie chart)
+    # 1. Originaux vs Doublons (Pie chart)
     if len(df_dup) > 0 or len(df_orig) > 0:
         pie_data = pd.DataFrame({
             "Statut": ["Originaux", "Doublons"],
@@ -495,16 +457,7 @@ def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
     else:
         fig_dup = empty_figure(theme, t(lang, "no_duplicates"))
 
-    # 3. Top propriétaires
-    if len(df_dup) and "proprietaire" in df_dup.columns:
-        fig_proprio = px.bar(
-            df_dup["proprietaire"].value_counts().head(10),
-            color_discrete_sequence=["#C9594C"]
-        )
-    else:
-        fig_proprio = empty_figure(theme, t(lang, "no_duplicates"))
-
-    # 4. Top catégories
+    # 2. Top catégories
     if len(df_dup) and "categorie_fichier" in df_dup.columns:
         fig_categorie = px.bar(
             df_dup["categorie_fichier"].value_counts().head(10),
@@ -513,62 +466,71 @@ def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
     else:
         fig_categorie = empty_figure(theme, t(lang, "no_duplicates"))
 
-    # 5. Groupes de doublons
-    if len(df_dup) and "id_groupe_doublon" in df_dup.columns:
-        fig_group = px.bar(
-            df_dup["id_groupe_doublon"].value_counts().head(10),
-            color_discrete_sequence=["#E0A05C"]
+    # 3. Top propriétaires
+    if len(df_dup) and "proprietaire" in df_dup.columns:
+        fig_proprietaire = px.bar(
+            df_dup["proprietaire"].value_counts().head(10),
+            color_discrete_sequence=["#C9594C"]
         )
     else:
-        fig_group = empty_figure(theme, t(lang, "no_duplicates"))
+        fig_proprietaire = empty_figure(theme, t(lang, "no_duplicates"))
 
-    # 6. Distribution par niveau (profondeur_dossier)
-    if "profondeur_dossier" in dff.columns:
-        # Distribution des doublons par niveau
-        niveau_counts = dff.groupby("profondeur_dossier").size().reset_index(name="count")
-        # Filtrer les niveaux avec des doublons
-        niveau_counts = niveau_counts.sort_values("profondeur_dossier")
+    # 4. Top dossiers impactés (avec le plus de gaspillage)
+    if len(df_dup) and "chemin_dossier" in df_dup.columns:
+        folder_waste = df_dup.groupby("chemin_dossier").agg({
+            "taille_octets": "sum",
+            "nom_fichier": "count"
+        }).reset_index()
+        folder_waste.columns = ["chemin_dossier", "waste_bytes", "file_count"]
+        folder_waste["waste_mb"] = folder_waste["waste_bytes"] / (1024 * 1024)
+        folder_waste = folder_waste.sort_values("waste_bytes", ascending=False).head(10)
         
-        if len(niveau_counts) > 0:
-            fig_niveau = px.bar(
-                niveau_counts,
-                x="profondeur_dossier",
-                y="count",
+        folder_waste["folder_short"] = folder_waste["chemin_dossier"].apply(
+            lambda x: x.split("/")[-1] if "/" in str(x) else str(x)[:30]
+        )
+        
+        fig_folders = px.bar(
+            folder_waste,
+            x="folder_short",
+            y="waste_mb",
+            color_discrete_sequence=["#277A70"],
+            labels={"folder_short": t(lang, "col_folder"), "waste_mb": "MB"}
+        )
+    else:
+        if len(df_dup) and "chemin" in df_dup.columns:
+            df_dup["chemin_dossier"] = df_dup["chemin"].apply(
+                lambda x: "/".join(str(x).split("/")[:-1]) if "/" in str(x) else str(x)
+            )
+            folder_waste = df_dup.groupby("chemin_dossier").agg({
+                "taille_octets": "sum",
+                "nom_fichier": "count"
+            }).reset_index()
+            folder_waste.columns = ["chemin_dossier", "waste_bytes", "file_count"]
+            folder_waste["waste_mb"] = folder_waste["waste_bytes"] / (1024 * 1024)
+            folder_waste = folder_waste.sort_values("waste_bytes", ascending=False).head(10)
+            
+            folder_waste["folder_short"] = folder_waste["chemin_dossier"].apply(
+                lambda x: x.split("/")[-1] if "/" in str(x) else str(x)[:30]
+            )
+            
+            fig_folders = px.bar(
+                folder_waste,
+                x="folder_short",
+                y="waste_mb",
                 color_discrete_sequence=["#277A70"],
-                labels={"profondeur_dossier": t(lang, "col_niveau"), "count": t(lang, "axis_nb_files")}
+                labels={"folder_short": t(lang, "col_folder"), "waste_mb": "MB"}
             )
         else:
-            fig_niveau = empty_figure(theme, t(lang, "no_duplicates"))
-    else:
-        # Si profondeur_dossier n'existe pas, essayer de l'extraire du chemin
-        if "chemin" in dff.columns:
-            dff["profondeur_calc"] = dff["chemin"].apply(lambda x: len(str(x).split("/")) - 1 if pd.notna(x) else 0)
-            niveau_counts = dff.groupby("profondeur_calc").size().reset_index(name="count")
-            niveau_counts = niveau_counts.sort_values("profondeur_calc")
-            
-            if len(niveau_counts) > 0:
-                fig_niveau = px.bar(
-                    niveau_counts,
-                    x="profondeur_calc",
-                    y="count",
-                    color_discrete_sequence=["#277A70"],
-                    labels={"profondeur_calc": t(lang, "col_niveau"), "count": t(lang, "axis_nb_files")}
-                )
-            else:
-                fig_niveau = empty_figure(theme, t(lang, "no_duplicates"))
-        else:
-            fig_niveau = empty_figure(theme, "Colonne 'profondeur_dossier' manquante")
+            fig_folders = empty_figure(theme, "Colonne 'chemin_dossier' manquante")
 
     # Appliquer le style
-    fig_ext = style_figure(fig_ext, theme)
     fig_dup = style_figure(fig_dup, theme)
-    fig_proprio = style_figure(fig_proprio, theme)
     fig_categorie = style_figure(fig_categorie, theme)
-    fig_group = style_figure(fig_group, theme)
-    fig_niveau = style_figure(fig_niveau, theme)
+    fig_proprietaire = style_figure(fig_proprietaire, theme)
+    fig_folders = style_figure(fig_folders, theme)
 
     # Ajuster les bar charts
-    for fig in (fig_ext, fig_proprio, fig_categorie, fig_group, fig_niveau):
+    for fig in (fig_categorie, fig_proprietaire, fig_folders):
         fig.update_traces(marker_line_width=0)
         fig.update_layout(showlegend=False, bargap=0.35, yaxis_title=None, xaxis_title=None)
 
@@ -580,50 +542,42 @@ def update_dashboard(proprietaire, categorie, lang, theme, _refresh):
         _table_columns(lang),
         total_fmt,
         duplicates_fmt,
-        groups_fmt,
+        waste_percent_fmt,
         space_fmt,
-        fig_ext,
         fig_dup,
-        fig_proprio,
         fig_categorie,
-        fig_group,
-        fig_niveau,
+        fig_proprietaire,
+        fig_folders,
     )
 
 
 @app.callback(
-    Output("label-filter-proprietaire", "children"),
     Output("label-filter-categorie", "children"),
-    Output("title-chart-ext", "children"),
     Output("title-chart-status", "children"),
-    Output("title-chart-proprietaire", "children"),
     Output("title-chart-categorie", "children"),
-    Output("title-chart-group", "children"),
-    Output("title-chart-niveau", "children"),
+    Output("title-chart-proprietaire", "children"),
+    Output("title-chart-folders", "children"),
     Output("title-table", "children"),
     Output("label-btn-export", "children"),
     Output("kpi-total-label", "children"),
     Output("kpi-duplicates-label", "children"),
-    Output("kpi-groups-label", "children"),
+    Output("kpi-waste-percent-label", "children"),
     Output("kpi-space-label", "children"),
     Input("lang-store", "data"),
 )
 def update_dashboard_labels(lang):
     lang = lang or "fr"
     return (
-        t(lang, "filter_proprietaire"),
         t(lang, "filter_categorie"),
-        t(lang, "chart_top_ext"),
         t(lang, "chart_status"),
-        t(lang, "chart_top_proprietaire"),
         t(lang, "chart_top_categorie"),
-        t(lang, "chart_top_group"),
-        t(lang, "chart_niveau"),
+        t(lang, "chart_top_proprietaire"),
+        t(lang, "chart_top_folders"),
         t(lang, "table_title"),
         t(lang, "btn_export"),
         t(lang, "kpi_total_files"),
         t(lang, "kpi_duplicates"),
-        t(lang, "kpi_groups"),
+        t(lang, "kpi_waste_percent"),
         t(lang, "kpi_space"),
     )
 
@@ -631,19 +585,16 @@ def update_dashboard_labels(lang):
 @app.callback(
     Output("download-pdf", "data"),
     Input("btn-export", "n_clicks"),
-    State("proprietaire_filter", "value"),
     State("categorie_filter", "value"),
     prevent_initial_call=True,
 )
-def export_pdf(n_clicks, proprietaire, categorie):
+def export_pdf(n_clicks, categorie):
     df = load_dataframe()
     if df.empty or "a_supprimer" not in df.columns:
         return no_update
 
     dff = df.copy()
 
-    if proprietaire and "proprietaire" in dff.columns:
-        dff = dff[dff["proprietaire"].isin(proprietaire)]
     if categorie and "categorie_fichier" in dff.columns:
         dff = dff[dff["categorie_fichier"].isin(categorie)]
 
@@ -663,8 +614,6 @@ def export_pdf(n_clicks, proprietaire, categorie):
         cols.append("proprietaire")
     if "categorie_fichier" in df_dup.columns:
         cols.append("categorie_fichier")
-    if "profondeur_dossier" in df_dup.columns:
-        cols.append("profondeur_dossier")
 
     for _, row in df_dup.head(100).iterrows():
         line = " | ".join([str(row[c])[:30] for c in cols if c in row.index])
