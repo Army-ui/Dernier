@@ -23,9 +23,9 @@ TRADUCTIONS = {
         "fr": "Doublons",
         "en": "Duplicates"
     },
-    "kpi_groups": {
-        "fr": "Groupes distincts",
-        "en": "Distinct groups"
+    "kpi_waste_percent": {
+        "fr": "% gaspillage",
+        "en": "% waste"
     },
     "kpi_space": {
         "fr": "Espace gaspillé",
@@ -33,41 +33,33 @@ TRADUCTIONS = {
     },
 
     # ── Filtres ────────────────────────────────────────────────────────
-    "filter_proprietaire": {
-        "fr": "Propriétaire",
-        "en": "Owner"
-    },
     "filter_categorie": {
         "fr": "Catégorie",
         "en": "Category"
     },
 
     # ── Graphiques ────────────────────────────────────────────────────
-    "chart_top_ext": {
-        "fr": "Top extensions dupliquées",
-        "en": "Top duplicated extensions"
+    "chart_status": {
+        "fr": "Originaux vs Doublons",
+        "en": "Originals vs Duplicates"
     },
-    "chart_top_folders": {
-        "fr": "Top dossiers à fort gaspillage",
-        "en": "Top folders with high waste"
+    "chart_top_categorie": {
+        "fr": "Top catégories",
+        "en": "Top categories"
     },
     "chart_top_proprietaire": {
         "fr": "Top propriétaires",
         "en": "Top owners"
     },
-    "chart_top_categorie": {
-        "fr": "Top catégories",
-        "en": "Top categories"
+    "chart_top_folders": {
+        "fr": "Top dossiers impactés",
+        "en": "Top impacted folders"
     },
 
     # ── Tableau ────────────────────────────────────────────────────────
     "table_title": {
         "fr": "Liste des doublons",
         "en": "Duplicates list"
-    },
-    "table_subtitle": {
-        "fr": "Fichiers marqués comme doublons avec leurs métadonnées",
-        "en": "Files marked as duplicates with their metadata"
     },
     "col_name": {
         "fr": "Fichier",
